@@ -1,0 +1,88 @@
+name: "Generic deploy action"
+description: "Github Action for deploying applications."
+author: "Devops Mario Fribla Gonzalez"
+inputs:
+  package-name:
+    description: "Name of the application to be deployed."
+    required: true
+  package-extension:
+    description: "Extension of the package to be deployed (e.g., zip)."
+    required: true
+  release-version:
+    description: "Version of the release to be deployed."
+    required: true
+  deployment-name:
+    description: "Name of application to be deployed (e.g., myapp)."
+    required: false
+  deployment-type:
+    description: "Type of deployment to perform (e.g., msdeploy, uncompress)."
+    required: true
+    options:
+      - "msdeploy"
+      - "uncompress"
+  typescript-nombre-sitio:
+    description: "Nombre del Sitio."
+    required: false
+  directorio-path:
+    description: "Directorio de Deploy DESA"
+    required: false
+    type: string
+    
+  # Parametros para el despliegue para msdeploy
+  iis-server-name:
+    description: "Server where the application will be deployed (e.g., production server)."
+    required: false
+  iis-server-username:
+    description: "Username for the IIS server."
+    required: false
+  iis-server-key:
+    description: "Password for the IIS server."
+    required: false
+      # Si se quiere agregar otro tipo de despliegue, se puede agregar aquí
+      # Nota: Asegurarse de que el script correspondiente exista en el directorio
+      #       y que exista la logica necesaria para manejar el nuevo tipo de despliegue.
+  environment:
+    description: "Environment where the application will be deployed (e.g., development, staging, production)."
+    required: false
+    default: "development"
+runs:
+  using: "composite"
+  steps:
+    # Download the assets if the environment is development
+    - uses: actions/download-artifact@v4
+      if: ${{ inputs.environment == 'development' }}
+      with:
+        name: assets
+    # Download the release assets if the environment is not development
+    - uses: robinraju/release-downloader@v1
+      if: ${{ inputs.environment != 'development' }}
+      with:
+        tag: ${{ inputs.release-version }}
+        fileName: ${{ inputs.package-name }}-${{ inputs.release-version }}.${{ inputs.package-extension }}
+
+    - if: ${{ inputs.deployment-type == 'uncompress' }}
+      shell: powershell
+      run: |
+        Write-Host "Ejecutando UNCOMPRESS..."
+        ${{ github.action_path }}/${{ inputs.deployment-type }}.ps1 -PackageName           "${{ inputs.package-name }}" `
+                                                                    -PackageExtension      "${{ inputs.package-extension }}" `
+                                                                    -ReleaseVersion        "${{ inputs.release-version }}" `
+                                                                    -TypescriptNombreSitio "${{ inputs.typescript-nombre-sitio }}" `
+                                                                    -CarpetaPath           "${{ inputs.directorio-path }}" `
+                                                                    -CRMEnvironment        "${{ inputs.environment }}"
+
+    - if: ${{ inputs.deployment-type == 'msdeploy' }}
+      shell: powershell
+      run: |
+        Write-Host "Ejecutando MSDEPLOY..."
+        ${{ github.action_path }}/${{ inputs.deployment-type }}.ps1 -PackageName      "${{ inputs.package-name }}" `
+                                                                    -PackageExtension "${{ inputs.package-extension }}" `
+                                                                    -ReleaseVersion   "${{ inputs.release-version }}" `
+                                                                    -DeploymentName   "${{ inputs.deployment-name }}" `
+                                                                    -IISServerName    "${{ inputs.iis-server-name }}" `
+                                                                    -IISServerUser    "${{ inputs.iis-server-username }}" `
+                                                                    -IISServerKey     "${{ inputs.iis-server-key }}"
+    # Si se quiere agregar otro tipo de despliegue, se puede agregar aquí
+branding:
+  color: "green"
+  icon: "package"
